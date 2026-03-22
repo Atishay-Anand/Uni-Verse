@@ -2,132 +2,198 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
+// ✅ Import models (MUST be at top)
+const User = require('./models/User');
+const Mood = require('./models/Mood');
+const Attendance = require('./models/Attendance');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Connect to the Uni-Verse Database
-// Inside server.js
+/* ================= DATABASE CONNECTION ================= */
 
-const mongoURI = "mongodb+srv://anand_arha_h_db_user:Sking279!@cluster0.jrzy8h8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+// ⚠️ Fixed password (! → %21)
+const mongoURI = "mongodb+srv://anand_arha_h_db_user:Sking279%21@cluster0.jrzy8h8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 
 mongoose.connect(mongoURI)
-  .then(() => console.log("✅ Uni-Verse is connected to the Cloud!"))
-  .catch(err => console.error("❌ Cloud Error: ", err));
- 
-// 2. Simple test route
-app.get('/', (req, res) => res.send("Uni-Verse Backend is officially running!"));
-// Test Route to check Attendance Logic
+  .then(() => console.log("✅ Uni-Verse connected to MongoDB Atlas"))
+  .catch(err => console.error("❌ DB Error:", err));
+
+/* ================= BASIC ROUTES ================= */
+
+app.get('/', (req, res) => {
+  res.send("🚀 Uni-Verse Backend is running!");
+});
+
 app.get('/test-attendance', (req, res) => {
-    const attendancePercent = 72; // Simulated data
-    if (attendancePercent < 75) {
-        res.json({ 
-            status: "Warning", 
-            message: `Attendance is ${attendancePercent}%. Alert: Below 75% threshold!` 
-        });
-    } else {
-        res.json({ status: "Good", message: "Attendance is on track." });
-    }
-});
-const User = require('./models/User');
+  const attendancePercent = 72;
 
-// Temporary route to create a test user
+  if (attendancePercent < 75) {
+    res.json({
+      status: "Warning",
+      message: `⚠️ Attendance is ${attendancePercent}% (Below 75%)`
+    });
+  } else {
+    res.json({ status: "Good", message: "✅ Attendance is safe" });
+  }
+});
+
+/* ================= USER TEST ================= */
+
 app.get('/add-test-student', async (req, res) => {
-    try {
-        const testUser = new User({
-            name: "Ipsita",
-            email: "ipsita@universe.com",
-            rollNo: "UNI101",
-            password: "password123"
-        });
+  try {
+    const testUser = new User({
+      name: "Ipsita",
+      email: "ipsita@universe.com",
+      rollNo: "UNI101",
+      password: "password123"
+    });
 
-        await testUser.save();
-        res.send("🎉 Success! Ipsita has been added to the Uni-Verse database.");
-    } catch (err) {
-        res.status(500).send("❌ Error saving user: " + err.message);
-    }
+    await testUser.save();
+    res.send("🎉 Test user added!");
+  } catch (err) {
+    res.status(500).send("❌ Error: " + err.message);
+  }
 });
-const Mood = require('./models/Mood');
 
-// Route to log mood and check for Burnout Risk
+/* ================= MOOD API ================= */
+
 app.post('/api/mood', async (req, res) => {
-    try {
-        const { userId, rating, note } = req.body;
-        
-        const newMood = new Mood({ user: userId, rating, note });
-        await newMood.save();
+  try {
+    const { userId, rating, note } = req.body;
 
-        // Analytics Logic: If rating is 1 or 2, it's a Burnout Risk
-        let suggestion = "Keep up the great work!";
-        if (rating <= 2) {
-            suggestion = "🔥 Burnout Risk Alert: You've been feeling low. Consider taking a short break or talking to a friend.";
-        } else if (rating === 3) {
-            suggestion = "You're doing okay, but don't forget to stay hydrated!";
-        }
+    const newMood = new Mood({
+      user: userId,
+      rating,
+      note
+    });
 
-        res.json({
-            status: "Success",
-            message: "Mood logged!",
-            recommendation: suggestion
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    await newMood.save();
+
+    let suggestion = "😊 Keep up the good work!";
+
+    if (rating <= 2) {
+      suggestion = "🔥 Burnout Risk: Take a break or talk to someone.";
+    } else if (rating === 3) {
+      suggestion = "😐 You're okay, but take care of yourself.";
     }
+
+    res.json({
+      message: "Mood logged!",
+      recommendation: suggestion
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+/* ================= ATTENDANCE API ================= */
 
-// Test Route: Log a low mood for Ipsita to see the Burnout Alert
-app.get('/test-burnout', async (req, res) => {
-    try {
-        // We'll use a hardcoded User ID for now (from your Atlas screenshot)
-        const moodRecord = new Mood({
-            user: "69b08167d400521d9a9fe76a", // This is Ipsita's ID from your screenshot
-            rating: 2, // Low rating to trigger alert
-            note: "Feeling really overwhelmed with the backend today!"
-        });
-
-        await moodRecord.save();
-
-        // The logic for the alert
-        let alertMessage = "You're doing great!";
-        if (moodRecord.rating <= 2) {
-            alertMessage = "🔥 Burnout Risk Alert: Your mood rating is low. Take a 15-minute walk!";
-        }
-
-        res.json({
-            message: "Mood Saved!",
-            recommendation: alertMessage
-        });
-    } catch (err) {
-        res.status(500).send("Error: " + err.message);
-    }
-});
-// 3. Start the server
-const PORT = 5000;
-app.listen(PORT, () => console.log(`🚀 Server listening on port ${PORT}`));
-const Attendance = require('./models/Attendance');
-
-// Route to log attendance and check the 75% limit
 app.post('/api/attendance', async (req, res) => {
-    try {
-        const { userId, subject, status } = req.body;
-        const newRecord = new Attendance({ user: userId, subject, status });
-        await newRecord.save();
+  try {
+    const { userId, subject, status } = req.body;
 
-        // Logic: Calculate total classes for this subject
-        const totalClasses = await Attendance.countDocuments({ user: userId, subject });
-        const presentClasses = await Attendance.countDocuments({ user: userId, subject, status: 'Present' });
-        
-        const percentage = (presentClasses / totalClasses) * 100;
+    const newRecord = new Attendance({
+      user: userId,
+      subject,
+      status
+    });
 
-        let alert = percentage < 75 ? "⚠️ Warning: Attendance below 75%!" : "✅ Attendance is safe.";
+    await newRecord.save();
 
-        res.json({ 
-            message: "Attendance logged!", 
-            currentPercentage: percentage.toFixed(2) + "%",
-            status: alert 
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    // Calculate attendance %
+    const total = await Attendance.countDocuments({ user: userId, subject });
+    const present = await Attendance.countDocuments({
+      user: userId,
+      subject,
+      status: 'Present'
+    });
+
+    const percent = (present / total) * 100;
+
+    let alert = percent < 75
+      ? "⚠️ Low Attendance!"
+      : "✅ Attendance Safe";
+
+    res.json({
+      message: "Attendance saved!",
+      percentage: percent.toFixed(2) + "%",
+      status: alert
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ================= DASHBOARD API (MAIN FEATURE) ================= */
+
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const userId = "test123"; // temporary
+
+    // Attendance
+    const attendance = await Attendance.find({ user: userId });
+    const total = attendance.length;
+    const present = attendance.filter(a => a.status === "Present").length;
+    const percent = total ? (present / total) * 100 : 0;
+
+    // Mood
+    const moods = await Mood.find({ user: userId });
+    const lastMood = moods[moods.length - 1];
+
+    let moodStatus = "😊 Good";
+    if (lastMood && lastMood.rating <= 2) {
+      moodStatus = "🔥 Burnout Risk";
     }
+
+    res.json({
+      attendance: percent.toFixed(2) + "%",
+      mood: moodStatus
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ================= START SERVER ================= */
+
+const PORT = 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
+// ================= LOGIN =================
+
+app.post('/api/register', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const user = new User({ name, email, password });
+    await user.save();
+
+    res.json({ message: "User registered" });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email, password });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    res.json({ userId: user._id });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
